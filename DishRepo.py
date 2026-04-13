@@ -1,75 +1,55 @@
+import sqlite3
 from typing import List, Optional
-from sqlalchemy.orm import Session
-from sqlalchemy import select
-from Models import Dish
-from interfaces import IDishRepository
+from Domain.Models.recipe import Dish
 
-class DishRepository(IDishRepository):
-    def __init__(self, session: Session):
-        self.session = session
+class DishRepository:
+    def __init__(self, db_path: str):
+        self.db_path = db_path
 
-    def create(self, dish: Dish) -> Dish:
-        self.session.add(dish)
-        self.session.commit()
-        self.session.refresh(dish)
-        return dish
+    def _get_connection(self):
+        return sqlite3.connect(self.db_path)
 
-    def get_all(self) -> List[Dish]:
-        query = select(Dish)
-        return list(self.session.execute(query).scalars().all())
+    def get_trending(self, limit: int = 3) -> List[Dish]:
+        """Суперпримітивні тренди: беремо випадкові рецепти"""
+        recipes = []
+        with self._get_connection() as conn:
+            cursor = conn.execute(
+                "SELECT id, name, cooking_time, description FROM recipes ORDER BY RANDOM() LIMIT ?", 
+                (limit,)
+            )
+            for row in cursor.fetchall():
+                recipes.append(Dish(id=row[0], name=row[1], cooking_time=row[2], description=row[3]))
+        return recipes
 
-    def get_by_id(self, dish_id: int) -> Optional[Dish]:
-        return self.session.get(Dish, dish_id)
+    def search_recipes(self, keyword: str = "", max_time: Optional[int] = None) -> List[Dish]:
+        """Пошук за ключовим словом та/або часом"""
+        recipes = []
+        query = "SELECT id, name, cooking_time, description FROM recipes WHERE 1=1"
+        params = []
 
-    def update(self, dish: Dish) -> Dish:
-        self.session.merge(dish)
-        self.session.commit()
-        return dish
+        if keyword:
+            query += " AND (name LIKE ? OR description LIKE ?)"
+            params.extend([f"%{keyword}%", f"%{keyword}%"])
+        
+        if max_time:
+            query += " AND cooking_time <= ?"
+            params.append(max_time)
 
-    def delete(self, dish_id: int) -> bool:
-        dish = self.get_by_id(dish_id)
-        if dish:
-            self.session.delete(dish)
-            self.session.commit()
-            return True
-        return False
+        query += " LIMIT 10"
 
-if __name__ == "__main__":
-    from sqlalchemy import create_engine
-    from models import Base
-    from DishService import DishService
-
-    engine = create_engine("sqlite:///kitchen.db")
-    Base.metadata.create_all(engine)
+        with self._get_connection() as conn:
+            cursor = conn.execute(query, params)
+            for row in cursor.fetchall():
+                recipes.append(Dish(id=row[0], name=row[1], cooking_time=row[2], description=row[3]))
+        return recipes
     
-    with Session(engine) as session:
-        repo = DishRepository(session)
-        service = DishService(repo)
-
-        while True:
-            print("\n1. Додати | 2. Вивести | 3. Оновити | 4. Видалити | 5. Вийти")
-            choice = input("Оберіть дію: ")
-
-            if choice == "1":
-                name = input("Назва: ")
-                price = float(input("Ціна: "))
-                desc = input("Опис: ")
-                service.create_dish(name, price, desc)
-            
-            elif choice == "2":
-                for dish in service.get_all_dishes():
-                    print(f"[{dish.id}] {dish.name} | {dish.price} грн | {dish.description}")
-            
-            elif choice == "3":
-                d_id = int(input("ID страви: "))
-                name = input("Нова назва: ")
-                price = float(input("Нова ціна: "))
-                desc = input("Новий опис: ")
-                service.update_dish(d_id, name, price, desc)
-            
-            elif choice == "4":
-                d_id = int(input("ID страви: "))
-                service.delete_dish(d_id)
-            
-            elif choice == "5":
-                break
+    def get_by_id(self, recipe_id: int) -> Optional[Dish]:
+        with self._get_connection() as conn:
+            cursor = conn.execute(
+                "SELECT id, name, cooking_time, description FROM recipes WHERE id = ?", 
+                (recipe_id,)
+            )
+            row = cursor.fetchone()
+            if row:
+                return Dish(id=row[0], name=row[1], cooking_time=row[2], description=row[3])
+        return None
