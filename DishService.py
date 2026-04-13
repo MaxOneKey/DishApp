@@ -1,47 +1,31 @@
-from interfaces import IDishRepository
-from models import Dish
-from typing import List
-import random
+from Repositories.DishRepo import DishRepository
 
 class DishService:
-    def __init__(self, dish_repo: IDishRepository):
+    def __init__(self, dish_repo: DishRepository):
         self.dish_repo = dish_repo
 
-    def create_dish(self, name: str, price: float, description: str) -> Dish:
-        if price <= 0:
-            raise ValueError("Ціна < 0")
-            
-        new_dish = Dish(id=0, name=name, price=price, description=description)
-        return self.dish_repo.create(new_dish)
+    def get_trends(self):
+        return self.dish_repo.get_trending(limit=3)
 
-    def get_all_dishes(self) -> List[Dish]:
-        return self.dish_repo.get_all()
-
-    def get_dish(self, dish_id: int) -> Dish:
-        dish = self.dish_repo.get_by_id(dish_id)
-        if not dish:
-            raise ValueError(f"Страву не знайдено")
-        return dish
-
-    def update_dish(self, dish_id: int, name: str, price: float, description: str) -> Dish:
-        dish = self.get_dish(dish_id)
+    def search(self, keyword: str, max_time_str: str):
+        max_time = None
+        if max_time_str.isdigit():
+            max_time = int(max_time_str)
+            if max_time <= 0:
+                raise ValueError("Час приготування має бути більшим за 0.")
         
-        if price <= 0:
-            raise ValueError("Ціна < 0")
-            
-        dish.name = name
-        dish.price = price
-        dish.description = description
-        
-        return self.dish_repo.update(dish)
-
-    def delete_dish(self, dish_id: int) -> bool:
-        self.get_dish(dish_id)
-        return self.dish_repo.delete(dish_id)
+        return self.dish_repo.search_recipes(keyword=keyword, max_time=max_time)
     
-    def roll_random_dish(self) -> Dish:
-        all_dishes = self.dish_repo.get_all()
+    def get_recipe(self, recipe_id: int):
+        recipe = self.dish_repo.get_by_id(recipe_id)
+        if not recipe:
+            raise ValueError("Рецепт не знайдено.")
+        return recipe
+
+    def generate_cooking_steps(self, description: str) -> list:
+        """Розбиваємо текст на кроки за крапками (найпростіший парсинг)"""
+        if not description or description.lower() == 'none':
+            return ["Готуйте на свій смак! (Детальний опис відсутній)"]
         
-        if not all_dishes:
-            raise ValueError("Меню пусте")
-        return random.choice(all_dishes)
+        steps = [step.strip() + "." for step in description.split('.') if step.strip()]
+        return steps if steps else [description]
