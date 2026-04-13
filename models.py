@@ -2,13 +2,21 @@ from dataclasses import dataclass
 
 @dataclass
 class User:
-    id: int
-    username: str
-    password: str 
+    id: int = None
+    username: str = ""
+    password: str = ""
 
 @dataclass
-class Dish:
+class HistoryRecord:
     id: int
-    name: str
-    price: float
-    description: str
+    recipe_name: str
+    cooked_at: str
+
+@dataclass
+class MealPlanItem:
+    id: int
+    date: str
+    meal_type: str
+    recipe_name: str
+    cooking_time: int
+    calories: int
